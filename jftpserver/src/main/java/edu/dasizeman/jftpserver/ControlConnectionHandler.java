@@ -22,6 +22,12 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	// Telnet end-of-line for delimiting responses
 	private static final String TELNET_EOL = "\r\n";
 	
+	// Welcome message
+	private static final String WELCOME_MSG = "Welcome to JFTP, homie.";
+	
+	private static final String[] SUPPORTED_CMDS = new String[]{"USER", "PASS", "CWD", "CDUP", "QUIT", "PASV", "EPSV",
+			"PORT", "EPRT", "RETR", "PWD", "LIST", "HELP"};
+	
 	// Logger to log events
 	private static final Logger logger = Logger.getGlobal();
 	
@@ -40,6 +46,14 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	// Authentication for this connection
 	private String username = null;
 	private String password = null;
+	
+	// The type of data connection
+	private enum DataConnectionType {
+		ACTIVE,
+		PASSIVE
+	}
+	
+	private DataConnectionType dataConnectionType = null;
 	
 	/**
 	 * Connection initialization stuff
@@ -78,7 +92,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 
 		// Send welcome message
-		writeFTPPDU("RIBBIT.");
+		sendFTPResponse(FTPResponse.NEW_USER_SERVICE_RDY, WELCOME_MSG);
 		
 		// Handle requests until the user leaves or something goes wrong
 		while(alive) {
@@ -93,6 +107,16 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		
 		// Clean up the connection and die
 		close();
+	}
+	
+	private void sendHelp() {
+		StringBuffer helpMsg = new StringBuffer();
+		helpMsg.append("The following commands are supported: ");
+		for (String cmd: SUPPORTED_CMDS) {
+			helpMsg.append(String.format("%s,", cmd));
+		}
+		
+		sendFTPResponse(FTPResponse.STATUS_REPLY, helpMsg.toString());
 	}
 	
 	/**
@@ -138,9 +162,16 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		
 		switch (commandData.command) {
-			default:
-				sendFTPResponse(FTPResponse.UNIMPLEMENTED_CMD, null);
-				break;
+		case HELP:
+			sendHelp();
+			break;
+		case QUIT:
+			sendFTPResponse(FTPResponse.CLOSING_CTRL_CONN, "Later, hater.");
+			alive = false;
+			break;
+		default:
+			sendFTPResponse(FTPResponse.UNIMPLEMENTED_CMD, null);
+			break;
 		}
 
 		
