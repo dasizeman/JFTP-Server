@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.logging.Logger;
 
 /**
@@ -35,10 +36,18 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	
 	// For breaking out of the handle loop
 	private boolean alive = true;
-
-	@Override
-	public void handle(Socket socket) {
-		this.socket = socket;
+	
+	// Authentication for this connection
+	private String username = null;
+	private String password = null;
+	
+	/**
+	 * Connection initialization stuff
+	 * @return If the initialization was successful
+	 */
+	private boolean init() {
+		// Load the credential file
+		JSONCredentialManager.getInstance().loadCredentialFile(JSONCredentialManager.CRED_FILE_PATH);
 		try {
 			this.socketIn = new DataInputStream(socket.getInputStream());
 			this.socketOut = new DataOutputStream(socket.getOutputStream());
@@ -46,18 +55,169 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			EventLogger.logConnectionException(logger, socket, e);
 			
 			// Terminate this connection thread
+			return false;
+		}
+		
+		return true;
+	}
+	
+	private void close() {
+		try {
+			socket.getInputStream().close();
+			socket.getOutputStream().close();
+			socket.close();
+		} catch (IOException e) {
+			EventLogger.logConnectionException(logger, socket, e);
+		}
+	}
+
+	@Override
+	public void handle(Socket socket) {
+		this.socket = socket;
+		if (!init())
+			return;
+
+		// Send welcome message
+		writeFTPPDU("RIBBIT.");
+		
+		// Handle requests until the user leaves or something goes wrong
+		while(alive) {
+			String message = getFTPPDU();
+			
+			// Die if a badly delimited or too large message is received
+			if (message == null)
+				alive = false;
+			
+			handleFTPCommand(message);
+		}
+		
+		// Clean up the connection and die
+		close();
+	}
+	
+	/**
+	 * A lil' wrapper for FTP commands we receive
+	 * @author Dave Sizer <dave@sizetron.net>
+	 *
+	 */
+	private class FTPCommandData {
+		public FTPCommand command;
+		public String[] args;
+		
+		public FTPCommandData(String commandStr) {
+			String[] tokens = commandStr.split(" ");
+			if (tokens.length < 1) {
+				command = null;
+				return;
+			}
+			
+			command = FTPCommand.getByName(tokens[0]);
+			args = Arrays.copyOfRange(tokens, 1, tokens.length);
+		}
+	}
+	
+	/**
+	 * Parses an incoming FTP command and sends the appropriate response
+	 * @param command The command to process
+	 */
+	private void handleFTPCommand(String command) {
+		
+		// Do some preliminary parsing of the input
+		FTPCommandData commandData = new FTPCommandData(command);
+		
+		// Is this command valid?
+		if (commandData.command == null) {
+			sendFTPResponse(FTPResponse.UNRECOGNIZED_CMD, null);
 			return;
 		}
 		
-		// Testing
-		while(alive) {
-			writeFTPPDU("RIBBIT.");
-			String message = getFTPPDU();
-			if (message == null)
-				alive = false;
+		// Make sure we are authenticated.  If the authentication helper
+		// has returned false, authentication is not complete and it has
+		// sent some response related to authenticating, so we bail here
+		if (!checkAuthentication(commandData))
+			return;
+		
+		switch (commandData.command) {
+			default:
+				sendFTPResponse(FTPResponse.UNIMPLEMENTED_CMD, null);
+				break;
+		}
+
+		
+	}
+	
+	/**
+	 * Make sure the user is properly authenticated, send any needed responses if not 
+	 * @param commandData The command we are checking authentication for
+	 * @return Whether we were authenticated or not
+	 */
+	private boolean checkAuthentication(FTPCommandData commandData) {
+		boolean alreadyAuthenticated = (username != null && password != null);
+		
+		if ((commandData.command == FTPCommand.USER || commandData.command == FTPCommand.PASS)
+				&& commandData.args.length < 1) {
+			sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, null);
+			return false;
 		}
 		
+		switch (commandData.command) {
+		case USER:
+			username = commandData.args[0];
+			password = null;
+			sendFTPResponse(FTPResponse.NEED_PASS, null);
+			return false;
+		case PASS:
+			
+			// They sent pass before username
+			if (username == null) {
+				sendFTPResponse(FTPResponse.BAD_CMD_SEQUENCE, "Login with USER first.");
+				return false;
+			}
+			
+			password = commandData.args[0];
+			
+			// Bad creds, close connection
+			if (!JSONCredentialManager.getInstance().checkCredential(username, password)) {
+				sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Bad credentials, bye ;)");
+				alive = false;
+				return false;
+			}
+			
+			// If we're here, creds are good
+			sendFTPResponse(FTPResponse.LOGIN_OK, String.format("Sup, %s. Welcome back.", username));
+			return false;
+			
+		default:
+			if (!alreadyAuthenticated) {
+				// They have entered user but not pass
+				if (username != null && password == null) {
+					sendFTPResponse(FTPResponse.BAD_CMD_SEQUENCE, null);
+					username = null;
+				} else
+					sendFTPResponse(FTPResponse.NOT_LOGGED_IN, null);
+				return false;
+			}
+		}	
 		
+		return true;
+	}
+		
+	
+	/**
+	 * Send a response to the client
+	 * @param response The response to send
+	 * @param message The response message.  If null, a default message is sent
+	 */
+	private void sendFTPResponse(FTPResponse response, String message) {
+		String sendMessage;
+		
+		// Send the default message if one wasn't specified
+		if (message == null)
+			sendMessage = response.message;
+		else
+			sendMessage = message;
+		
+		writeFTPPDU(String.format("%s %s", Integer.toString(response.code), sendMessage));
 	}
 	
 	/**

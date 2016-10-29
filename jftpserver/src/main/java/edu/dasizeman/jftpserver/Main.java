@@ -61,6 +61,15 @@ public class Main {
 		// Log everything to some source
 		logger.setLevel(Level.ALL);
 		
+		/*
+		credManager.addCredential("dave", "magic");
+		try {
+			credManager.writeCredentialFile();
+		} catch (FileNotFoundException e1) {
+			System.out.println(e1);
+		}
+		*/
+		
 		// Create a server socket to listen for connections
 		int port = 0;
 		try {
