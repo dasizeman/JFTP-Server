@@ -87,6 +87,19 @@ public class TCPConnectionFactory {
 		
 	}
 	
+	/**
+	 * Get a socket for an inbound connection.  Blocks waiting for this connection
+	 * @param port The port to bind to on the default interface
+	 * @return The connected socket
+	 * @throws IOException If something goes wrong with binding or connection
+	 */
+	public static Socket getListenSocket(int port) throws IOException {
+		ServerSocket serverSocket = new ServerSocket(port);
+		Socket socket = serverSocket.accept();
+		serverSocket.close();
+		return socket;
+	}
+	
 	/***
 	 * Start an outgoing connection and start a thread with the specified handler
 	 * @param host The host to connect to in format <host>:<port>

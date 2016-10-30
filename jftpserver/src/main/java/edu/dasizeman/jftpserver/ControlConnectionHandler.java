@@ -1,12 +1,24 @@
 package edu.dasizeman.jftpserver;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.logging.Logger;
 
 /**
@@ -38,8 +50,8 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	
 	// Connection input and output streams.  Not sure if we need the Data* wrapper classes since I wrote the
 	// PDU logic myself but oh well
-	private DataInputStream socketIn;
-	private DataOutputStream socketOut;
+	private BufferedReader socketIn;
+	private BufferedWriter socketOut;
 	
 	// For breaking out of the handle loop
 	private boolean alive = true;
@@ -55,6 +67,16 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	}
 	private DataConnectionType dataConnectionType = null;
 	
+	// Current data listener
+	private ServerSocket dataListener;
+	
+	private Socket dataConnection;
+	
+	
+	// Port for active connections
+	private int activePort;
+	
+	
 	// Filesystem manager 
 	private FilesystemManager filesystem;
 	
@@ -66,8 +88,8 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		// Load the credential file
 		JSONCredentialManager.getInstance().loadCredentialFile(JSONCredentialManager.CRED_FILE_PATH);
 		try {
-			this.socketIn = new DataInputStream(socket.getInputStream());
-			this.socketOut = new DataOutputStream(socket.getOutputStream());
+			this.socketIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+			this.socketOut = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 		} catch (IOException e) {
 			EventLogger.logConnectionException(logger, socket, e);
 			
@@ -104,8 +126,11 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			String message = getFTPPDU();
 			
 			// Die if a badly delimited or too large message is received
-			if (message == null)
-				alive = false;
+			if (message == null) {
+				EventLogger.logConnectionException(logger, socket, new Exception("Bad FTP PDU received."));
+				sendFTPResponse(FTPResponse.UNRECOGNIZED_CMD, null);
+				continue;
+			}
 			
 			handleFTPCommand(message);
 		}
@@ -147,7 +172,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		
 		// Is this command valid?
 		if (commandData.command == null) {
-			sendFTPResponse(FTPResponse.UNRECOGNIZED_CMD, null);
+			sendFTPResponse(FTPResponse.UNIMPLEMENTED_CMD, null);
 			return;
 		}
 		
@@ -158,6 +183,15 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		
 		switch (commandData.command) {
+		case TYPE:
+				sendFTPResponse(FTPResponse.COMMAND_OK, "Always using ASCII type.");
+			break;
+		case NOOP:
+			sendFTPResponse(FTPResponse.COMMAND_OK, "NOOP ok.");
+			break;
+		case PASV:
+			doPASV();
+			break;
 		case CDUP:
 			// Add the .. arg and call the CWD handler
 			commandData.args = new String[]{".."};
@@ -167,12 +201,22 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			doCWD(commandData);
 			break;
 		case LIST:
-			// TODO temporary
-			EventLogger.logNetworkDataSent(logger, socket, filesystem.ls());
-			sendFTPResponse(FTPResponse.COMMAND_OK, null);
+			Socket dataSocket = getDataSocket();
+			if (dataSocket != null) {
+				// Create a String stream for the directory listing
+				InputStream stringStream = new ByteArrayInputStream(filesystem.ls().getBytes());
+				
+				// Send the listing over the socket
+				sendFTPResponse(FTPResponse.ABOUT_TO_OPEN_DATA, "Here comes the directory listing.");
+				new DataConnectionHandler().startSend(dataSocket, stringStream, this);
+				dataConnectionType = null;
+				break;
+			} 
+			sendFTPResponse(FTPResponse.CANT_OPEN_DATA_CONN, "Use PORT or PASV first.");
+			dataConnectionType = null;
 			break;
 		case PWD:
-			sendFTPResponse(FTPResponse.PATH_CREATED, String.format("CWD is: %s", filesystem.pwd()));
+			sendFTPResponse(FTPResponse.PATH_CREATED, String.format("%s", filesystem.pwd()));
 			break;
 		case HELP:
 			sendHelp();
@@ -187,6 +231,107 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		}
 
 		
+	}
+	
+	
+	private void doPASV() {
+		boolean portBound = false;
+		while (!portBound) {
+			try {
+				InetAddress bindAddress = getLocalInterface();
+				if (bindAddress == null)
+					break;
+				dataListener = new ServerSocket(0,0, bindAddress);
+			} catch (IOException e) {
+				EventLogger.logListenException(logger, dataListener, e);
+			}
+			portBound = true;
+		}
+		
+		if (portBound) {
+			// Make sure we are bound to an IPV4 interface
+			try {
+				Inet4Address ipv4 = (Inet4Address)(dataListener.getInetAddress());
+			} catch (ClassCastException e) {
+				sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Only IPv4 is supported. Closing connection.");
+				alive = false;
+				return;
+			}
+			// TODO hopefully it starts listening in time
+			new DataConnectionListener(dataListener, this).listen();
+			sendFTPResponse(FTPResponse.ENTERING_PASV, getPASVString((Inet4Address)dataListener.getInetAddress(), dataListener.getLocalPort()));
+			dataConnectionType = DataConnectionType.PASSIVE;
+		} else {
+			sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Failed to bind data port.  Closing connection.");
+			alive = false;
+		}
+	}
+	
+	void dataConnectionCallback(Socket connection) {
+		if (connection == null) {
+			dataConnectionType = null;
+			sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Data connection failed.  Closing connection.");
+			alive = false;
+			return;
+		}
+		dataConnection = connection;
+	}
+	
+	private Socket getDataSocket() {
+		if (dataConnectionType == null)
+			return null;
+		switch (dataConnectionType) {
+		case PASSIVE:
+			return dataConnection;
+		case ACTIVE:
+			// Try to connect to the client's active port
+			try {
+				return new Socket(socket.getInetAddress(), activePort);
+			} catch (IOException e) {
+				EventLogger.logConnectionException(logger, socket, e);
+				return null;
+			}
+		default:
+			return null;
+		}
+	}
+	
+	
+	private String getPASVString(Inet4Address addr, int port) {
+		String ipStr = addr.getHostAddress();
+		String[] octets = ipStr.split("\\.");
+		int portUpper = port / 256;
+		int portLower = port % 256;
+		return String.format("Entering PASV mode (%s,%d,%d)", String.join(",", octets), portUpper, portLower);
+	}
+	
+	private Inet4Address getLocalInterface() {
+		Enumeration<NetworkInterface> ifaceenum;
+		try {
+			ifaceenum = NetworkInterface.getNetworkInterfaces();
+		} catch (SocketException e) {
+			return null;
+		}
+		while (ifaceenum.hasMoreElements())
+		{
+			NetworkInterface ni = ifaceenum.nextElement();
+			Enumeration<InetAddress> addrenum = ni.getInetAddresses();
+			while (addrenum.hasMoreElements())
+			{
+				InetAddress thisaddr = addrenum.nextElement();
+				
+				if (!thisaddr.isLoopbackAddress()) {
+					try {
+						Inet4Address ipv4 = (Inet4Address)thisaddr;
+						return ipv4;
+					} catch (ClassCastException e) {
+						continue;
+					}
+				}
+			}
+		}
+		
+		return null;
 	}
 	
 	private void doCWD(FTPCommandData data) {
@@ -274,7 +419,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 * @param response The response to send
 	 * @param message The response message.  If null, a default message is sent
 	 */
-	private void sendFTPResponse(FTPResponse response, String message) {
+	void sendFTPResponse(FTPResponse response, String message) {
 		String sendMessage;
 		
 		// Send the default message if one wasn't specified
@@ -291,37 +436,52 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 * @return The message that was read
 	 */
 	private String getFTPPDU() {
+		/*
 		// Buffer for socket data
 		byte[] buffer = new byte[MAX_MSG_SIZE];
 		
 		// For building the message string as it comes off the socket
-		StringBuffer out = new StringBuffer();
 		int totalRead = 0, numRead = 0;
 		try {
-			while ((numRead = socketIn.read(buffer)) > 0) {
-				totalRead += numRead;
+			while ((numRead = socketIn.read(buffer, totalRead, buffer.length - totalRead)) >= 0) {
+				
+				if (numRead == 0)
+					continue;
+				
 				
 				// Bail if the message is too big
-				if (totalRead > MAX_MSG_SIZE)
+				if (totalRead > MAX_MSG_SIZE) {
+					// empty the stream buffer
+					while (socketIn.read(buffer) > 0) {}
 					break;
+				}
+				
+				
+				byte[] bytesReceived = Arrays.copyOfRange(buffer, totalRead, numRead);
+				StringBuffer bytePrint = new StringBuffer();
+				for (byte b : bytesReceived) {
+					bytePrint.append(String.format("0x%02X ", b));
+				}
+				
+				EventLogger.logNetworkDataReceived(logger, socket,bytePrint.toString());
+
+				totalRead += numRead;
 
 				// Encode the message as standard ASCII
-				String segment = new String(buffer, Charset.forName("US-ASCII"));
+				String segment = new String(bytesReceived, Charset.forName("UTF-8"));
 				
 				// Check for the Telnet EOL
 				int eolIdx = segment.indexOf(TELNET_EOL);
 				
 				// If we have reached the EOL we are done reading
 				if (eolIdx >= 0) {
-					out.append(segment.substring(0, eolIdx));
-					String result = out.toString();
+					String decoded = new String(buffer, Charset.forName("UTF-8"));
+					String result = decoded.substring(0, eolIdx);
 					EventLogger.logNetworkDataReceived(logger, socket, result);
 					return result;
 				}
 			}
 			
-			// The message was too big, empty the stream buffer
-			while (socketIn.read(buffer) > 0) {}
 
 		} catch (IOException e) {
 			EventLogger.logConnectionException(logger, socket, e);
@@ -329,15 +489,26 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		}
 		
 		return null;
+		*/
+		String result;
+		try {
+			result = socketIn.readLine();
+			EventLogger.logNetworkDataReceived(logger, socket, result);
+		} catch (IOException e) {
+			EventLogger.logConnectionException(logger, socket, e);
+			result = null;
+		}
+		return result;
 	}
 	
 	/**
 	 * Writes the message to the socket, appending the Telnet EOL delimiter
 	 * @param message The message to send
 	 */
-	private void writeFTPPDU(String message) {
+	private synchronized void writeFTPPDU(String message) {
 		try {
-			socketOut.write((message + TELNET_EOL).getBytes());
+			socketOut.write((message + TELNET_EOL));
+			socketOut.flush();
 			EventLogger.logNetworkDataSent(logger, socket, message);
 		} catch (IOException e) {
 			EventLogger.logConnectionException(logger, socket, e);

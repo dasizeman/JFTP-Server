@@ -1,5 +1,6 @@
 package edu.dasizeman.jftpserver;
 
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -18,6 +19,10 @@ public class EventLogger {
 		logger.log(Level.SEVERE, String.format(LOG_FORMAT, getConnectionIDString(socket),"Connection error", e.getMessage()));
 	}
 	
+	public static void logListenException(Logger logger, ServerSocket socket, Exception e) {
+		logger.log(Level.SEVERE, String.format(LOG_FORMAT, getListenIDString(socket),"Listen error", e.getMessage()));
+	}
+	
 	public static void logNetworkDataSent(Logger logger, Socket socket, String data) {
 		logger.log(Level.FINE, String.format(LOG_FORMAT, getConnectionIDString(socket), "Sending", data));
 	}
@@ -29,6 +34,13 @@ public class EventLogger {
 	private static String getConnectionIDString(Socket socket) {
 		String address = socket.getInetAddress().getHostAddress();
 		String port = Integer.toString(socket.getPort());
+		
+		return String.format("%s:%s", address, port);
+	}
+	
+	private static String getListenIDString(ServerSocket socket) {
+		String address = socket.getInetAddress().getHostAddress();
+		String port = Integer.toString(socket.getLocalPort());
 		
 		return String.format("%s:%s", address, port);
 	}

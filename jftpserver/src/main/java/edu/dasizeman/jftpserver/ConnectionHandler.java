@@ -9,7 +9,7 @@ import java.net.Socket;
  *
  */
 public abstract class ConnectionHandler implements Runnable {
-	private Socket socket;
+	protected Socket socket;
 	
 	/**
 	 * Start the handler thread with the given connection socket

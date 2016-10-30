@@ -17,6 +17,7 @@ public enum FTPCommand {
 	PWD,
 	LIST, 
 	HELP,
+	TYPE,
 	NOOP;
 	
 	private static final Map<String, FTPCommand> commandMap; 

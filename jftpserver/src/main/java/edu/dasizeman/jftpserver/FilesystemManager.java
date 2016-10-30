@@ -36,19 +36,19 @@ public class FilesystemManager {
 	
 	public String pwd() {
 		Path relativeTo;
-		if (rootPath.getParent() == null)
+		//if (rootPath.getParent() == null)
 			relativeTo = rootPath;
-		else
-			relativeTo = rootPath.getParent();
+		//else
+			//relativeTo = rootPath.getParent();
 		String output = relativeTo.relativize(currentPath.toAbsolutePath()).normalize().toString().replaceAll("\\\\", "/");
-		return String.format("%s/", output);
+		return String.format("\"%s/\"", output);
 	}
 	
 	public String ls() {
 		StringBuffer result = new StringBuffer();
 		File currentDirectory = currentPath.toAbsolutePath().toFile();
 		for (File file : currentDirectory.listFiles()) {
-			result.append(String.format("%s\n",printFile(file)));
+			result.append(String.format("%s\r\n",printFile(file)));
 			
 		}
 		
