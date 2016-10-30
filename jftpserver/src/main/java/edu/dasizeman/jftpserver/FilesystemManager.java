@@ -6,15 +6,31 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * Handles navigating the file system, reading/writing files,
+ * and jailing the user to a virtual root directory
+ * @author Dave Sizer <dave@sizetron.net>
+ *
+ */
 public class FilesystemManager {
 	private Path rootPath;
 	private Path currentPath;
 	
-	public FilesystemManager(String root) {
-		if (root.equals(""))
-			root = ".";
+	/**
+	 * Create a new filesystem manager
+	 * @param root The virtual root oath that the user must stay in
+	 */
+	public FilesystemManager(String rootStr) {
+		if (rootStr.equals(""))
+			rootStr = ".";
 		
-		rootPath = Paths.get(root).toAbsolutePath().normalize();
+		try {
+			rootPath = Paths.get(rootStr).toAbsolutePath().normalize().toRealPath();
+		} catch (IOException e) {
+			// Assuming . is always a valid path
+			rootPath = Paths.get(".").toAbsolutePath().normalize();
+		}
+		
 		currentPath = rootPath.relativize(rootPath);
 	}
 	
