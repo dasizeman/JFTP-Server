@@ -40,12 +40,11 @@ public class FilesystemManager {
 	}
 	
 	public void cd(String pathStr) throws FileNotFoundException {
+		if (pathStr.startsWith("/")) {
+			currentPath = rootPath.relativize(rootPath);
+		}
 		if (currentPath.toString().equals(""))
 			currentPath = Paths.get(".");
-		if (pathStr.equals("/")) {
-			currentPath = rootPath.relativize(rootPath);
-			return;
-		}
 		Path path = Paths.get(pathStr);
 		if (!path.isAbsolute()) {
 			pathStr = String.join("/", currentPath.toString(), path.toString());
