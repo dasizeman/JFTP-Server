@@ -2,6 +2,7 @@ package edu.dasizeman.jftpserver;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.charset.Charset;
@@ -52,8 +53,10 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		ACTIVE,
 		PASSIVE
 	}
-	
 	private DataConnectionType dataConnectionType = null;
+	
+	// Filesystem manager 
+	private FilesystemManager filesystem;
 	
 	/**
 	 * Connection initialization stuff
@@ -71,6 +74,8 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			// Terminate this connection thread
 			return false;
 		}
+		
+		filesystem = new FilesystemManager("");
 		
 		return true;
 	}
@@ -109,15 +114,6 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		close();
 	}
 	
-	private void sendHelp() {
-		StringBuffer helpMsg = new StringBuffer();
-		helpMsg.append("The following commands are supported: ");
-		for (String cmd: SUPPORTED_CMDS) {
-			helpMsg.append(String.format("%s,", cmd));
-		}
-		
-		sendFTPResponse(FTPResponse.STATUS_REPLY, helpMsg.toString());
-	}
 	
 	/**
 	 * A lil' wrapper for FTP commands we receive
@@ -162,6 +158,22 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		
 		switch (commandData.command) {
+		case CDUP:
+			// Add the .. arg and call the CWD handler
+			commandData.args = new String[]{".."};
+			doCWD(commandData);
+			break;
+		case CWD:
+			doCWD(commandData);
+			break;
+		case LIST:
+			// TODO temporary
+			EventLogger.logNetworkDataSent(logger, socket, filesystem.ls());
+			sendFTPResponse(FTPResponse.COMMAND_OK, null);
+			break;
+		case PWD:
+			sendFTPResponse(FTPResponse.PATH_CREATED, String.format("CWD is: %s", filesystem.pwd()));
+			break;
 		case HELP:
 			sendHelp();
 			break;
@@ -175,6 +187,29 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		}
 
 		
+	}
+	
+	private void doCWD(FTPCommandData data) {
+		if (data.args.length < 1) {
+			sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, null);
+			return;
+		}
+		try {
+			filesystem.cd(data.args[0]);
+			sendFTPResponse(FTPResponse.FILE_ACTION_COMPLETED, String.format("CWD is now: %s", filesystem.pwd()));
+		} catch (FileNotFoundException e) {
+			sendFTPResponse(FTPResponse.FILE_UNAVAIL, e.getMessage());
+		}
+	}
+	
+	private void sendHelp() {
+		StringBuffer helpMsg = new StringBuffer();
+		helpMsg.append("The following commands are supported: ");
+		for (String cmd: SUPPORTED_CMDS) {
+			helpMsg.append(String.format("%s,", cmd));
+		}
+		
+		sendFTPResponse(FTPResponse.STATUS_REPLY, helpMsg.toString());
 	}
 	
 	/**
