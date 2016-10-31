@@ -21,6 +21,8 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Handler for an FTP control connection
@@ -185,6 +187,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		
 		switch (commandData.command) {
+		case EPRT:
+			doEPRT(commandData);
+			break;
 		case PORT:
 			doPORT(commandData);
 			break;
@@ -321,6 +326,23 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			}
 		}
 		sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Invalid port command");
+	}
+	
+	private void doEPRT(FTPCommandData commandData) {
+		if(commandData.args.length >= 1) {
+			Pattern eprtPattern = Pattern.compile("|(\\d)|(\\d+\\.\\d+\\.\\d+\\.\\d+)|(\\d+)|");
+			Matcher eprtMatcher = eprtPattern.matcher(commandData.args[0]);
+			if(eprtMatcher.find() 
+					&& eprtMatcher.group(1) != null
+					&& eprtMatcher.group(1).equals("1")) {
+				activeHostString = eprtMatcher.group(2);
+				activePort = Integer.parseInt(eprtMatcher.group(3));
+				dataConnectionType = DataConnectionType.ACTIVE;
+				sendFTPResponse(FTPResponse.COMMAND_OK, "Extended Port command accepted.");
+				return;
+			}
+		}
+		sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Invalid extended port command");
 	}
 	
 	void dataConnectionCallback(Socket connection) {
