@@ -194,7 +194,8 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			sendFTPResponse(FTPResponse.COMMAND_OK, "NOOP ok.");
 			break;
 		case PASV:
-			doPASV();
+		case EPSV:
+			doPASV(commandData);
 			break;
 		case CDUP:
 			// Add the .. arg and call the CWD handler
@@ -242,8 +243,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Please specify a file");
 			return;
 		}
+		String fileName = String.join(" ", commandData.args);
 		
-		FileInputStream fileStream = filesystem.getFileStream(commandData.args[0]);
+		FileInputStream fileStream = filesystem.getFileStream(fileName);
 		if (fileStream == null) {
 			sendFTPResponse(FTPResponse.FILE_UNAVAIL, "File not available");
 			return;
@@ -261,7 +263,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	}
 	
 	
-	private void doPASV() {
+	private void doPASV(FTPCommandData commandData) {
 		boolean portBound = false;
 		while (!portBound) {
 			try {
@@ -286,7 +288,11 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			}
 			// TODO hopefully it starts listening in time
 			new DataConnectionListener(dataListener, this).listen();
-			sendFTPResponse(FTPResponse.ENTERING_PASV, getPASVString((Inet4Address)dataListener.getInetAddress(), dataListener.getLocalPort()));
+			if (commandData.command == FTPCommand.PASV) {
+				sendFTPResponse(FTPResponse.ENTERING_PASV, getPASVString((Inet4Address)dataListener.getInetAddress(), dataListener.getLocalPort()));
+			} else {
+				sendFTPResponse(FTPResponse.ENTERING_EPSV, getEPSVString((Inet4Address)dataListener.getInetAddress(), dataListener.getLocalPort()));
+			}
 			dataConnectionType = DataConnectionType.PASSIVE;
 		} else {
 			sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Failed to bind data port.  Closing connection.");
@@ -332,6 +338,10 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		return String.format("Entering PASV mode (%s,%d,%d)", String.join(",", octets), portUpper, portLower);
 	}
 	
+	public String getEPSVString(Inet4Address addr, int port) {
+		return String.format("Entering Extended Passive mode (|||%d|)", port);
+	}
+	
 	private Inet4Address getLocalInterface() {
 		Enumeration<NetworkInterface> ifaceenum;
 		try {
@@ -367,7 +377,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		}
 		try {
-			filesystem.cd(data.args[0]);
+			// Join arguments
+			String path = String.join(" ", data.args);
+			filesystem.cd(path);
 			sendFTPResponse(FTPResponse.FILE_ACTION_COMPLETED, String.format("CWD is now: %s", filesystem.pwd()));
 		} catch (FileNotFoundException e) {
 			sendFTPResponse(FTPResponse.FILE_UNAVAIL, e.getMessage());
