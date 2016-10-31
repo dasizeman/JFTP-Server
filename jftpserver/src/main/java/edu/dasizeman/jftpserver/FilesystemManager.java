@@ -1,10 +1,12 @@
 package edu.dasizeman.jftpserver;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.logging.Logger;
 
 /**
  * Handles navigating the file system, reading/writing files,
@@ -13,6 +15,7 @@ import java.nio.file.Paths;
  *
  */
 public class FilesystemManager {
+	private static final Logger logger = Logger.getGlobal();
 	private Path rootPath;
 	private Path currentPath;
 	
@@ -70,6 +73,21 @@ public class FilesystemManager {
 			throw new FileNotFoundException(String.format("Invalid path: %s", Paths.get(pathStr).toString().replaceAll("\\\\", "/")));
 		currentPath = rootPath.relativize(realPath);
 			
+	}
+	
+	public FileInputStream getFileStream(String filename) {
+		File currentDirectory = currentPath.toAbsolutePath().toFile();
+		for (File file : currentDirectory.listFiles()) {
+			if (file.isFile() && file.getName().equals(filename)) {
+				try {
+					return new FileInputStream(file);
+				} catch (FileNotFoundException e) {
+					EventLogger.logGeneralException(logger, e);
+					break;
+				}
+			}
+		}
+		return null;
 	}
 	
 	private String printFile(File file) {

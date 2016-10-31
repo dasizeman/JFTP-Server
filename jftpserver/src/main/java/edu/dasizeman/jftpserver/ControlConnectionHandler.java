@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -183,8 +184,11 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		
 		switch (commandData.command) {
+		case RETR:
+			sendFile(commandData);
+			break;
 		case TYPE:
-				sendFTPResponse(FTPResponse.COMMAND_OK, "Always using ASCII type.");
+				sendFTPResponse(FTPResponse.COMMAND_OK, "What is type, anyway?");
 			break;
 		case NOOP:
 			sendFTPResponse(FTPResponse.COMMAND_OK, "NOOP ok.");
@@ -231,6 +235,29 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		}
 
 		
+	}
+	
+	private void sendFile(FTPCommandData commandData) {
+		if (commandData.args.length < 1) {
+			sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Please specify a file");
+			return;
+		}
+		
+		FileInputStream fileStream = filesystem.getFileStream(commandData.args[0]);
+		if (fileStream == null) {
+			sendFTPResponse(FTPResponse.FILE_UNAVAIL, "File not available");
+			return;
+		}
+		Socket dataSocket = getDataSocket();
+		if (dataSocket == null) {
+			sendFTPResponse(FTPResponse.CANT_OPEN_DATA_CONN, "Use PORT or PASV first.");
+			dataConnectionType = null;
+			return;
+		}
+		
+		sendFTPResponse(FTPResponse.ABOUT_TO_OPEN_DATA, String.format("%s incoming.", commandData.args[0]));
+		new DataConnectionHandler().startSend(dataSocket, fileStream, this);
+		dataConnectionType = null;
 	}
 	
 	
@@ -436,60 +463,6 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 * @return The message that was read
 	 */
 	private String getFTPPDU() {
-		/*
-		// Buffer for socket data
-		byte[] buffer = new byte[MAX_MSG_SIZE];
-		
-		// For building the message string as it comes off the socket
-		int totalRead = 0, numRead = 0;
-		try {
-			while ((numRead = socketIn.read(buffer, totalRead, buffer.length - totalRead)) >= 0) {
-				
-				if (numRead == 0)
-					continue;
-				
-				
-				// Bail if the message is too big
-				if (totalRead > MAX_MSG_SIZE) {
-					// empty the stream buffer
-					while (socketIn.read(buffer) > 0) {}
-					break;
-				}
-				
-				
-				byte[] bytesReceived = Arrays.copyOfRange(buffer, totalRead, numRead);
-				StringBuffer bytePrint = new StringBuffer();
-				for (byte b : bytesReceived) {
-					bytePrint.append(String.format("0x%02X ", b));
-				}
-				
-				EventLogger.logNetworkDataReceived(logger, socket,bytePrint.toString());
-
-				totalRead += numRead;
-
-				// Encode the message as standard ASCII
-				String segment = new String(bytesReceived, Charset.forName("UTF-8"));
-				
-				// Check for the Telnet EOL
-				int eolIdx = segment.indexOf(TELNET_EOL);
-				
-				// If we have reached the EOL we are done reading
-				if (eolIdx >= 0) {
-					String decoded = new String(buffer, Charset.forName("UTF-8"));
-					String result = decoded.substring(0, eolIdx);
-					EventLogger.logNetworkDataReceived(logger, socket, result);
-					return result;
-				}
-			}
-			
-
-		} catch (IOException e) {
-			EventLogger.logConnectionException(logger, socket, e);
-			return null;
-		}
-		
-		return null;
-		*/
 		String result;
 		try {
 			result = socketIn.readLine();

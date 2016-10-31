@@ -19,6 +19,10 @@ public class EventLogger {
 		logger.log(Level.SEVERE, String.format(LOG_FORMAT, getConnectionIDString(socket),"Connection error", e.getMessage()));
 	}
 	
+	public static void logGeneralException(Logger logger, Exception e) {
+		logger.log(Level.SEVERE, e.toString());
+	}
+	
 	public static void logListenException(Logger logger, ServerSocket socket, Exception e) {
 		logger.log(Level.SEVERE, String.format(LOG_FORMAT, getListenIDString(socket),"Listen error", e.getMessage()));
 	}
