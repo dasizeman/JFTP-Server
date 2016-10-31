@@ -76,6 +76,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	
 	// Port for active connections
 	private int activePort;
+	private String activeHostString;
 	
 	
 	// Filesystem manager 
@@ -184,6 +185,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		
 		switch (commandData.command) {
+		case PORT:
+			doPORT(commandData);
+			break;
 		case RETR:
 			sendFile(commandData);
 			break;
@@ -300,6 +304,25 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		}
 	}
 	
+	private void doPORT(FTPCommandData commandData) {
+		String portString = null;
+		if (commandData.args.length >= 1) {
+			portString = commandData.args[0];
+			String[] portSegments = portString.split(",");
+			
+			if (portSegments.length == 6) {
+				activeHostString = String.join(".", Arrays.copyOfRange(portSegments, 0, 4));
+				int portUpper = Integer.parseInt(portSegments[4]);
+				int portLower = Integer.parseInt(portSegments[5]);
+				activePort = 256 * portUpper + portLower;
+				dataConnectionType = DataConnectionType.ACTIVE;
+				sendFTPResponse(FTPResponse.COMMAND_OK, "Port command accepted.");
+				return;
+			}
+		}
+		sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Invalid port command");
+	}
+	
 	void dataConnectionCallback(Socket connection) {
 		if (connection == null) {
 			dataConnectionType = null;
@@ -319,7 +342,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		case ACTIVE:
 			// Try to connect to the client's active port
 			try {
-				return new Socket(socket.getInetAddress(), activePort);
+				return new Socket(activeHostString, activePort);
 			} catch (IOException e) {
 				EventLogger.logConnectionException(logger, socket, e);
 				return null;
