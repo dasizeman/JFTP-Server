@@ -13,6 +13,14 @@ import javax.json.JsonValue;
 import javax.json.JsonWriter;
 import javax.json.JsonValue.ValueType;
 
+/**
+ * A very stupid credential manager that loads credentials from
+ * a plaintext JSON file, as basic String:String KVPs.  Currently
+ * looks for 'creds.json' in default directory, and supports
+ * anons
+ * @author Dave Sizer <dave@sizetron.net>
+ * @since 10/28/16
+ */
 public class JSONCredentialManager {
 	public static final String CRED_FILE_PATH = "creds.json";
 	public static final String ANON_USERNAME = "anonymous";

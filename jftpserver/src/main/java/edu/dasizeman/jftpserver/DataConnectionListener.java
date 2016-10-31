@@ -3,6 +3,12 @@ package edu.dasizeman.jftpserver;
 import java.io.IOException;
 import java.net.ServerSocket;
 
+/**
+ * A thread to listen for data connections
+ * @author Dave Sizer <dave@sizetron.net>
+ * @since 10/28/16
+ *
+ */
 public class DataConnectionListener implements Runnable {
 	private ServerSocket listenSocket;
 	private ControlConnectionHandler controlHandler;

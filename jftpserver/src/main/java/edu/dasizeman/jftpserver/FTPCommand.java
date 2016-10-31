@@ -3,6 +3,12 @@ package edu.dasizeman.jftpserver;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Commands supported by JFTPServer
+ * @author Dave Sizer <dave@sizetron.net>
+ * @since 10/28/16
+ *
+ */
 public enum FTPCommand {
 	USER,
 	PASS,

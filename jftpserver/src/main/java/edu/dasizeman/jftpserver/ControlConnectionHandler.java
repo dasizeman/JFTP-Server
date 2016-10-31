@@ -3,8 +3,6 @@ package edu.dasizeman.jftpserver;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -17,7 +15,6 @@ import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.logging.Logger;
@@ -32,17 +29,15 @@ import java.util.regex.Pattern;
  */
 public class ControlConnectionHandler extends ConnectionHandler {
 	
-	// This is the maximum length, in bytes, of a command that this server will accept
-	private static final int MAX_MSG_SIZE = 1024*1024;
-	
 	// Telnet end-of-line for delimiting responses
 	private static final String TELNET_EOL = "\r\n";
 	
 	// Welcome message
 	private static final String WELCOME_MSG = "Welcome to JFTP, homie.";
 	
+	// This is just for sending the help message
 	private static final String[] SUPPORTED_CMDS = new String[]{"USER", "PASS", "CWD", "CDUP", "QUIT", "PASV", "EPSV",
-			"PORT", "EPRT", "RETR", "PWD", "LIST", "HELP"};
+			"PORT", "EPRT", "RETR", "PWD", "LIST", "HELP", "TYPE", "NOOP"};
 	
 	// Logger to log events
 	private static final Logger logger = Logger.getGlobal();
@@ -51,8 +46,8 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	// of this thread
 	private Socket socket;
 	
-	// Connection input and output streams.  Not sure if we need the Data* wrapper classes since I wrote the
-	// PDU logic myself but oh well
+	// Connection input and output streams.  I use readline so its possible you could crash the server with an absurdly long 
+	// command pdu
 	private BufferedReader socketIn;
 	private BufferedWriter socketOut;
 	
@@ -68,15 +63,19 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		ACTIVE,
 		PASSIVE
 	}
+	// We use the is to make sure that the user has issued a port or pasv command
+	// before doing operations with the data connection
 	private DataConnectionType dataConnectionType = null;
 	
-	// Current data listener
+	// Current data listener, used for the time when the user has called pasv but not connected
+	//yet
 	private ServerSocket dataListener;
 	
+	// The actual socket used for data transfers
 	private Socket dataConnection;
 	
 	
-	// Port for active connections
+	// Port and host for making an active data connection
 	private int activePort;
 	private String activeHostString;
 	
@@ -101,11 +100,15 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return false;
 		}
 		
+		// This is where we would set a different serving root directory if we wanted, for now it just serves from the same
+		// directory as the JAR if we don't specify anything
 		filesystem = new FilesystemManager("");
 		
 		return true;
 	}
 	
+	// This closes the control connection.  Only ever called directly from the end of the main handle loop.
+	// To kill the connection we can set alive = false from somewhere in this class
 	private void close() {
 		try {
 			socket.getInputStream().close();
@@ -145,7 +148,10 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	
 	
 	/**
-	 * A lil' wrapper for FTP commands we receive
+	 * A lil' wrapper for FTP commands we receive.  Parses
+	 * into the actual command enum and a string array of 
+	 * space delimited arguments.  command == null if parsing
+	 * fails
 	 * @author Dave Sizer <dave@sizetron.net>
 	 *
 	 */
@@ -197,6 +203,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			sendFile(commandData);
 			break;
 		case TYPE:
+				// I am convinced that type doesn't matter on the server side, since
+				// I just dump the whole file to the socket.  It does seem to matter
+				// to a lot of clients, so I'm "supporting" it
 				sendFTPResponse(FTPResponse.COMMAND_OK, "What is type, anyway?");
 			break;
 		case NOOP:
@@ -247,18 +256,29 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		
 	}
 	
+	/**
+	 * Handles looking for the file in the current directory, and sending it over the data connection.
+	 * TODO: Do ftp servers support retrieving files in directories other than the current, because 
+	 * mine doesn't
+	 * @param commandData The command info including the file name
+	 */
 	private void sendFile(FTPCommandData commandData) {
 		if (commandData.args.length < 1) {
 			sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Please specify a file");
 			return;
 		}
+		// Join into a single file name argument
 		String fileName = String.join(" ", commandData.args);
 		
+		// Try to get a stream from the file manager
 		FileInputStream fileStream = filesystem.getFileStream(fileName);
 		if (fileStream == null) {
 			sendFTPResponse(FTPResponse.FILE_UNAVAIL, "File not available");
 			return;
 		}
+		// Try to get a valid data connection
+		// TODO We should probably wrap this so we don't have to repeat it for every
+		// data command
 		Socket dataSocket = getDataSocket();
 		if (dataSocket == null) {
 			sendFTPResponse(FTPResponse.CANT_OPEN_DATA_CONN, "Use PORT or PASV first.");
@@ -266,49 +286,73 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return;
 		}
 		
+		// Let the client know we are about to send the file over the data connection, and kick off a thread
+		// to do so
 		sendFTPResponse(FTPResponse.ABOUT_TO_OPEN_DATA, String.format("%s incoming.", commandData.args[0]));
 		new DataConnectionHandler().startSend(dataSocket, fileStream, this);
+		
+		// Reset the type so they have to enter the connection method again (port or pasv)
+		// TODO this is probably another thing that should be wrapped so I don't forget to do it
+		// somewhere, as new commands are added
 		dataConnectionType = null;
 	}
 	
 	
+	/**
+	 * Handles the pasv and epsv commands, immediately starts listening on the data port and
+	 * sends the appropriate response when this is done
+	 * @param commandData To check which one of the commands it is.  Since we are not supporting
+	 * IPv6 right now, the only thing that differs is the string we send back
+	 */
 	private void doPASV(FTPCommandData commandData) {
+		// Try to bind the listen port.  There is definitely a cleaner way to do this error handling
 		boolean portBound = false;
-		while (!portBound) {
-			try {
-				InetAddress bindAddress = getLocalInterface();
-				if (bindAddress == null)
-					break;
+		try {
+			InetAddress bindAddress = getLocalInterface();
+			if (bindAddress == null)
+				portBound = false;
+			else {
 				dataListener = new ServerSocket(0,0, bindAddress);
-			} catch (IOException e) {
-				EventLogger.logListenException(logger, dataListener, e);
+				portBound = true;
 			}
-			portBound = true;
+		} catch (IOException e) {
+			EventLogger.logListenException(logger, dataListener, e);
+			portBound = false;
 		}
 		
 		if (portBound) {
-			// Make sure we are bound to an IPV4 interface
+			// Make sure we are bound to an IPV4 interface.  I am using janky casting here to do this,
+			// there is probably a better way
 			try {
+				@SuppressWarnings("unused")
 				Inet4Address ipv4 = (Inet4Address)(dataListener.getInetAddress());
 			} catch (ClassCastException e) {
 				sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Only IPv4 is supported. Closing connection.");
 				alive = false;
 				return;
 			}
-			// TODO hopefully it starts listening in time
+			// TODO We actually probably need some synchronization here, we are currently just hoping that the  client waits
+			// until we send our response to try connecting (which it is supposed to do), and that this delay is long enough for
+			// the other thread to start listening.  NOTE: I have seen some cases where it looks like the client tries to issue its data command
+			// before we are ready, so this synchronization might actually be an issue sometimes
+			dataConnectionType = DataConnectionType.PASSIVE;
 			new DataConnectionListener(dataListener, this).listen();
 			if (commandData.command == FTPCommand.PASV) {
 				sendFTPResponse(FTPResponse.ENTERING_PASV, getPASVString((Inet4Address)dataListener.getInetAddress(), dataListener.getLocalPort()));
 			} else {
 				sendFTPResponse(FTPResponse.ENTERING_EPSV, getEPSVString((Inet4Address)dataListener.getInetAddress(), dataListener.getLocalPort()));
 			}
-			dataConnectionType = DataConnectionType.PASSIVE;
 		} else {
 			sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Failed to bind data port.  Closing connection.");
 			alive = false;
 		}
 	}
 	
+	/**
+	 * Set our active connection endpoint based on the port command we received
+	 * TODO try and make this logic cleaner
+	 * @param commandData
+	 */
 	private void doPORT(FTPCommandData commandData) {
 		String portString = null;
 		if (commandData.args.length >= 1) {
@@ -328,6 +372,12 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Invalid port command");
 	}
 	
+	/**
+	 * Set our active connection endpoint based on an eprt command.
+	 * TODO this is untested because I can't get any client to send me
+	 * EPRT
+	 * @param commandData
+	 */
 	private void doEPRT(FTPCommandData commandData) {
 		if(commandData.args.length >= 1) {
 			Pattern eprtPattern = Pattern.compile("|(\\d)|(\\d+\\.\\d+\\.\\d+\\.\\d+)|(\\d+)|");
@@ -345,6 +395,11 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, "Invalid extended port command");
 	}
 	
+	/**
+	 * This is called back from the thread that listens for a data connection 
+	 * for passive mode
+	 * @param connection The connected socket for the data connection
+	 */
 	void dataConnectionCallback(Socket connection) {
 		if (connection == null) {
 			dataConnectionType = null;
@@ -355,6 +410,12 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		dataConnection = connection;
 	}
 	
+	/**
+	 * Tries to return a valid data connection socket based
+	 * on the current data connection mode
+	 * @return The data socket to use or null if there
+	 * was a problem
+	 */
 	private Socket getDataSocket() {
 		if (dataConnectionType == null)
 			return null;
@@ -375,6 +436,12 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	}
 	
 	
+	/**
+	 * Produces the string that we send back on a pasv request 
+	 * @param addr The IPv4 address object we are going to bind to
+	 * @param port The port we are binding to
+	 * @return The string to send in the passive response
+	 */
 	private String getPASVString(Inet4Address addr, int port) {
 		String ipStr = addr.getHostAddress();
 		String[] octets = ipStr.split("\\.");
@@ -383,10 +450,20 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		return String.format("Entering PASV mode (%s,%d,%d)", String.join(",", octets), portUpper, portLower);
 	}
 	
+	/**
+	 * Produces the string that we send back on an epsv request
+	 * @param addr The IPv4 address object we are going to bind to
+	 * @param port The port we are binding to
+	 * @return The string to send in the epsv response
+	 */
 	public String getEPSVString(Inet4Address addr, int port) {
 		return String.format("Entering Extended Passive mode (|||%d|)", port);
 	}
 	
+	/**
+	 * Get the first IPV4 interface we can find on this host
+	 * @return This address object
+	 */
 	private Inet4Address getLocalInterface() {
 		Enumeration<NetworkInterface> ifaceenum;
 		try {
@@ -416,6 +493,10 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		return null;
 	}
 	
+	/**
+	 * Try to change the working directory
+	 * @param data The cwd command data
+	 */
 	private void doCWD(FTPCommandData data) {
 		if (data.args.length < 1) {
 			sendFTPResponse(FTPResponse.BAD_CMD_PARAMETERS, null);
@@ -431,6 +512,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		}
 	}
 	
+	/**
+	 * Send the help response
+	 */
 	private void sendHelp() {
 		StringBuffer helpMsg = new StringBuffer();
 		helpMsg.append("The following commands are supported: ");

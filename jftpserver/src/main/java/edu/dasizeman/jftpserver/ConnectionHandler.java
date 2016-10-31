@@ -3,7 +3,8 @@ package edu.dasizeman.jftpserver;
 import java.net.Socket;
 
 /**
- * Abstract handler for a TCP connection
+ * Abstract handler for a TCP connection.  Needs to be redesigned since the 
+ * Data connection handler kind of hacks it
  * @author Dave Sizer <dave@sizetron.net>
  * @since 10/28/16
  *

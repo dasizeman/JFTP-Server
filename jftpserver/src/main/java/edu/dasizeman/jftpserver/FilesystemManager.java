@@ -37,16 +37,22 @@ public class FilesystemManager {
 		currentPath = rootPath.relativize(rootPath);
 	}
 	
+	/**
+	 * Get the current working directory
+	 * @return A string representing the cwd
+	 */
 	public String pwd() {
 		Path relativeTo;
-		//if (rootPath.getParent() == null)
-			relativeTo = rootPath;
-		//else
-			//relativeTo = rootPath.getParent();
+		relativeTo = rootPath;
 		String output = relativeTo.relativize(currentPath.toAbsolutePath()).normalize().toString().replaceAll("\\\\", "/");
 		return String.format("\"%s/\"", output);
 	}
 	
+	/**
+	 * List the files in the current directory.
+	 * TODO make this a fancier unix-style listing 
+	 * @return A string containing the directory listing
+	 */
 	public String ls() {
 		StringBuffer result = new StringBuffer();
 		File currentDirectory = currentPath.toAbsolutePath().toFile();
@@ -58,6 +64,11 @@ public class FilesystemManager {
 		return result.toString();
 	}
 	
+	/**
+	 * Change the current working directory, checking the candidate path's validity
+	 * @param pathStr The path to change to
+	 * @throws FileNotFoundException If the directory does not exist
+	 */
 	public void cd(String pathStr) throws FileNotFoundException {
 		if (pathStr.startsWith("/")) {
 			currentPath = rootPath.relativize(rootPath);
@@ -75,6 +86,11 @@ public class FilesystemManager {
 			
 	}
 	
+	/**
+	 * Check if the current directory has the given file, and return a stream to read it
+	 * @param filename The file to open
+	 * @return The stream to the file, or null if it is not valid
+	 */
 	public FileInputStream getFileStream(String filename) {
 		File currentDirectory = currentPath.toAbsolutePath().toFile();
 		for (File file : currentDirectory.listFiles()) {
@@ -90,6 +106,11 @@ public class FilesystemManager {
 		return null;
 	}
 	
+	/**
+	 * Append the directory / to directories
+	 * @param file The File object to print
+	 * @return The string to be printed
+	 */
 	private String printFile(File file) {
 		String res = file.getName();
 		if (file.isDirectory())
@@ -97,6 +118,12 @@ public class FilesystemManager {
 		return res;
 	}
 	
+	/**
+	 * Verify that the given path exists and is within the virtual
+	 * root filesystem, and return a Path object for it
+	 * @param path The path to validate
+	 * @return The Path object representing the valid path, or null if it isn't valid
+	 */
 	private Path getRealPath(String path) {
 		Path real;
 		try {

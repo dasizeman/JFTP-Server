@@ -3,6 +3,12 @@ package edu.dasizeman.jftpserver;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Responses specified by FTP RFC 959 and extensions in RFC 2428
+ * @author Dave Sizer <dave@sizetron.net>
+ * @since 10/28/16
+ *
+ */
 public enum FTPResponse {
 	COMMAND_OK(200, "Command okay."),
 	UNRECOGNIZED_CMD(500, "Syntax error, command unrecognized."),

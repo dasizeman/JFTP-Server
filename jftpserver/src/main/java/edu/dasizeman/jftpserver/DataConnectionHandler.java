@@ -14,8 +14,16 @@ import java.util.logging.Logger;
  */
 public class DataConnectionHandler extends ConnectionHandler {
 	private static final Logger logger = Logger.getGlobal();
+	
+	// We have a reference to the control handler for sending responses when
+	// the data transfer is done or fails
 	private ControlConnectionHandler controlHandler;
+	
+	// The stream we are going to send over the socket
 	private InputStream sendStream;
+	
+	// Note used yet, but used so this thread can handle both sending and receving 
+	// and its designed badly
 	private enum mode {
 		SND,
 		RCV
@@ -34,9 +42,19 @@ public class DataConnectionHandler extends ConnectionHandler {
 		
 	}
 	
+	/**
+	 * Like I said, bad design.  Just don't call this lol
+	 */
 	@Override
 	public void start(Socket socket){}
 	
+	/**
+	 * Start an outgoing data transfer
+	 * @param socket The socket to send on
+	 * @param dataStream The stream to send
+	 * @param controlHandler The control connection handler to 
+	 * call back to
+	 */
 	public void startSend(Socket socket, InputStream dataStream, ControlConnectionHandler controlHandler) {
 		connectionMode = mode.SND;
 		this.controlHandler = controlHandler;
@@ -45,6 +63,12 @@ public class DataConnectionHandler extends ConnectionHandler {
 		new Thread(this).start();
 	}
 	
+	/**
+	 * Wrapper for attempting to send a stream of data over a socket, that handles
+	 * necessary control responses
+	 * @param from The stream to send
+	 * @param to The socket to send over
+	 */
 	private void trySendData(InputStream from, Socket to) {
 		try {
 			streamCopy(from, to.getOutputStream());
@@ -64,6 +88,11 @@ public class DataConnectionHandler extends ConnectionHandler {
 		}
 	}
 	
+	/**
+	 * Fully copy one stream to another
+	 * @param from The source stream
+	 * @param to The destination stream
+	 */
 	private void streamCopy(InputStream from, OutputStream to) {
 		try {
 			int count = 0;

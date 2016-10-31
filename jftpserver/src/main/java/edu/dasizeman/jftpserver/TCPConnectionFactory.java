@@ -17,7 +17,8 @@ public class TCPConnectionFactory {
 	
 	/**
 	 * Container to return parsed host data internally in this class
-	 * @author dasizeman
+	 * @author Dave Sizer <dave@sizetron.net>
+	 * @since 10/28/16
 	 *
 	 */
 	private static class ParsedHost {
