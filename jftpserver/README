@@ -1,0 +1,37 @@
+JFTPServer
+Dave Sizer
+A simple FTP server in Java
+
+I got rid of the scripts, and now use Maven for building :D
+
+To build:
+$ mvn clean package
+
+From the project root (jftpserver/)
+
+This will put a jar in the target/ directory
+
+You can either move this JAR, or leave it where it is.
+
+NOTE!! The server needs a credential file, 'creds.json', in the default working directory
+This directory is the directory that you ran the java -jar command from.  This file is included
+in the project root, and you can add your own credentials to it, but if you run the jar file from 
+somewhere else, you will need to move this credential file there.  Anonymous access is also enabled.
+
+The credential file format is as follows:
+
+{
+"dave":"magic",
+"josh":"frogs"
+}
+
+
+NOTE!! The server will serve files from this same directory (the one you ran java -jar from)
+
+You can then run the server with:
+$ java -jar <jarfile> -log <log file name> -port <port to run server on>
+
+All arguments are required
+
+NOTE that the ubuntu default 'ftp' utility works really well for testing, but doesn't seem to be on tux
+

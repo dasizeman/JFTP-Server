@@ -56,7 +56,7 @@ public class Main {
 		
 		
 		logger.addHandler(logFile);
-		logger.addHandler(consoleLog);
+		//logger.addHandler(consoleLog);
 		
 		// Log everything to some source
 		logger.setLevel(Level.ALL);
