@@ -35,18 +35,39 @@
     </dependency>
   </dependencies>
   <build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
+	<plugins>
+		<plugin>
+		<groupId>org.apache.maven.plugins</groupId>
+		<artifactId>maven-dependency-plugin</artifactId>
+		<executions>
+			<execution>
+				<id>copy-dependencies</id>
+				<phase>prepare-package</phase>
+				<goals>
+					<goal>copy-dependencies</goal>
+				</goals>
 				<configuration>
-					<archive>
-						<manifest>
-							<mainClass>edu.dasizeman.jftpserver.Main</mainClass>
-						</manifest>
-					</archive>
+					<outputDirectory>${project.build.directory}/lib</outputDirectory>
+					<overWriteReleases>false</overWriteReleases>
+					<overWriteSnapshots>false</overWriteSnapshots>
+					<overWriteIfNewer>true</overWriteIfNewer>
 				</configuration>
-			</plugin>
-		</plugins>
+			</execution>
+		</executions>
+	</plugin>
+	<plugin>
+		<groupId>org.apache.maven.plugins</groupId>
+		<artifactId>maven-jar-plugin</artifactId>
+		<configuration>
+			<archive>
+				<manifest>
+					<addClasspath>true</addClasspath>
+					<classpathPrefix>lib/</classpathPrefix>
+					<mainClass>edu.dasizeman.jftpserver.Main</mainClass>
+				</manifest>
+			</archive>
+		</configuration>
+	</plugin>
+	</plugins>
 	</build>
 </project>
