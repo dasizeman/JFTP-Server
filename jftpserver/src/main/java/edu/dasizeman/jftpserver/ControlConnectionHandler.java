@@ -89,7 +89,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 */
 	private boolean init() {
 		// Load the credential file
-		JSONCredentialManager.getInstance().loadCredentialFile(JSONCredentialManager.CRED_FILE_PATH);
+		CredentialManager.getInstance().loadCredentialFile(CredentialManager.CRED_FILE_PATH);
 		try {
 			this.socketIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			this.socketOut = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
@@ -556,7 +556,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			password = commandData.args[0];
 			
 			// Bad creds, close connection
-			if (!JSONCredentialManager.getInstance().checkCredential(username, password)) {
+			if (!CredentialManager.getInstance().checkCredential(username, password)) {
 				sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Bad credentials, bye ;)");
 				alive = false;
 				return false;
