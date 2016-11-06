@@ -37,6 +37,8 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	
 	// The configuration option for the accounts file
 	private static final String ACCT_FILE_CONFIG_KEY = "usernamefile";
+	private static final String ALLOW_ACTIVE_CONFIG_KEY = "port_mode";
+	private static final String ALLOW_PASSIVE_CONFIG_KEY = "pasv_mode";
 	
 	// This is just for sending the help message
 	private static final String[] SUPPORTED_CMDS = new String[]{"USER", "PASS", "CWD", "CDUP", "QUIT", "PASV", "EPSV",
@@ -86,6 +88,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	// Filesystem manager 
 	private FilesystemManager filesystem;
 	
+	// For restricting data transfer modes
+	boolean allowPassive = false, allowActive = false;
+	
 	/**
 	 * Connection initialization stuff
 	 * @return If the initialization was successful
@@ -97,6 +102,19 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			
 			// Load the credential file
 			CredentialManager.getInstance().loadCredentialFile(configFile.getConfigValue(ACCT_FILE_CONFIG_KEY));
+			
+			// Check if data transfer modes have been restricted in the config
+			if (configFile.getConfigValue(ALLOW_ACTIVE_CONFIG_KEY).toLowerCase().equals("yes")) 
+				allowActive = true;
+			
+			if(configFile.getConfigValue(ALLOW_PASSIVE_CONFIG_KEY).toLowerCase().equals("yes"))
+				allowPassive = true;
+			
+			if (!allowActive && !allowPassive) {
+				EventLogger.logGeneralException(logger, "Server init", new Exception("At least one of port_mode and pasv_mode must be enabled in the config"));
+				System.exit(1);
+			}
+			
 			this.socketIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			this.socketOut = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 		} catch (IOException e) {
@@ -311,6 +329,10 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 * IPv6 right now, the only thing that differs is the string we send back
 	 */
 	private void doPASV(FTPCommandData commandData) {
+		if (!allowPassive) {
+			sendFTPResponse(FTPResponse.UNIMPLEMENTED_CMD, "Passive transfers are disabled on this server.");
+			return;
+		}
 		// Try to bind the listen port.  There is definitely a cleaner way to do this error handling
 		boolean portBound = false;
 		try {
@@ -360,6 +382,11 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 * @param commandData
 	 */
 	private void doPORT(FTPCommandData commandData) {
+		if (!allowActive) {
+			sendFTPResponse(FTPResponse.UNIMPLEMENTED_CMD, "Active transfers are disabled on this server.");
+			return;
+		}
+		
 		String portString = null;
 		if (commandData.args.length >= 1) {
 			portString = commandData.args[0];
@@ -385,6 +412,11 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 * @param commandData
 	 */
 	private void doEPRT(FTPCommandData commandData) {
+		if (!allowActive) {
+			sendFTPResponse(FTPResponse.UNIMPLEMENTED_CMD, "Active transfers are disabled on this server.");
+			return;
+		}
+		
 		if(commandData.args.length >= 1) {
 			Pattern eprtPattern = Pattern.compile("|(\\d)|(\\d+\\.\\d+\\.\\d+\\.\\d+)|(\\d+)|");
 			Matcher eprtMatcher = eprtPattern.matcher(commandData.args[0]);

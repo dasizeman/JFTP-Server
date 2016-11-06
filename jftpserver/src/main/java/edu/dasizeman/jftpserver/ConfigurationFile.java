@@ -12,6 +12,8 @@ public class ConfigurationFile extends KVPFile {
 	
 	private static final String LOG_DIR_DEFAULT = "/var/log/jftpd";
 	private static final String ACCT_FILE_DEFAULT = "./creds.conf";
+	private static final String ALLOW_ACTIVE_DEFAULT = "yes";
+	private static final String ALLOW_PASSIVE_DEFAULT = "yes";
 	private static final int LOG_NUM_DEFAULT=5;
 	
 	private static HashMap<String,String> configDefaults;
@@ -22,6 +24,8 @@ public class ConfigurationFile extends KVPFile {
 		configDefaults.put("logdirectory", LOG_DIR_DEFAULT);
 		configDefaults.put("numlogfiles", Integer.toString(LOG_NUM_DEFAULT));
 		configDefaults.put("usernamefile", ACCT_FILE_DEFAULT);
+		configDefaults.put("port_mode", ALLOW_ACTIVE_DEFAULT);
+		configDefaults.put("pasv_mode", ALLOW_PASSIVE_DEFAULT);
 		
 	}
 	
