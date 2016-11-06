@@ -14,6 +14,7 @@ public class ConfigurationFile extends KVPFile {
 	private static final String ACCT_FILE_DEFAULT = "./creds.conf";
 	private static final String ALLOW_ACTIVE_DEFAULT = "yes";
 	private static final String ALLOW_PASSIVE_DEFAULT = "yes";
+	private static final String FILE_ROOT_DEFAULT = "./";
 	private static final int LOG_NUM_DEFAULT=5;
 	
 	private static HashMap<String,String> configDefaults;
@@ -26,7 +27,7 @@ public class ConfigurationFile extends KVPFile {
 		configDefaults.put("usernamefile", ACCT_FILE_DEFAULT);
 		configDefaults.put("port_mode", ALLOW_ACTIVE_DEFAULT);
 		configDefaults.put("pasv_mode", ALLOW_PASSIVE_DEFAULT);
-		
+		configDefaults.put("file_root", FILE_ROOT_DEFAULT);
 	}
 	
 	public static ConfigurationFile getInstance() throws LineFormatException, IOException {

@@ -39,6 +39,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	private static final String ACCT_FILE_CONFIG_KEY = "usernamefile";
 	private static final String ALLOW_ACTIVE_CONFIG_KEY = "port_mode";
 	private static final String ALLOW_PASSIVE_CONFIG_KEY = "pasv_mode";
+	private static final String FILE_ROOT_CONFIG_KEY = "file_root";
 	
 	// This is just for sending the help message
 	private static final String[] SUPPORTED_CMDS = new String[]{"USER", "PASS", "CWD", "CDUP", "QUIT", "PASV", "EPSV",
@@ -114,6 +115,10 @@ public class ControlConnectionHandler extends ConnectionHandler {
 				EventLogger.logGeneralException(logger, "Server init", new Exception("At least one of port_mode and pasv_mode must be enabled in the config"));
 				System.exit(1);
 			}
+
+			// This is where we would set a different serving root directory if we wanted, for now it just serves from the same
+			// directory as the JAR if we don't specify anything
+			filesystem = new FilesystemManager(configFile.getConfigValue(FILE_ROOT_CONFIG_KEY));
 			
 			this.socketIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			this.socketOut = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
@@ -124,9 +129,6 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			return false;
 		}
 		
-		// This is where we would set a different serving root directory if we wanted, for now it just serves from the same
-		// directory as the JAR if we don't specify anything
-		filesystem = new FilesystemManager("");
 		
 		return true;
 	}

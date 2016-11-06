@@ -8,6 +8,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.logging.Logger;
 
+import org.apache.commons.io.FileUtils;
+
 /**
  * Handles navigating the file system, reading/writing files,
  * and jailing the user to a virtual root directory
@@ -28,13 +30,21 @@ public class FilesystemManager {
 			rootStr = ".";
 		
 		try {
-			rootPath = Paths.get(rootStr).toAbsolutePath().normalize().toRealPath();
+			//rootPath = Paths.get(rootStr).toAbsolutePath().normalize().toRealPath();
+			
+			File rootDir = FileUtils.getFile(rootStr);
+			if (!rootDir.exists() || !rootDir.isDirectory())
+				throw new FileNotFoundException(String.format("Could not open root directory: %s", rootStr));
+			rootPath = Paths.get(rootDir.getAbsolutePath());
+			
 		} catch (IOException e) {
 			// Assuming . is always a valid path
-			rootPath = Paths.get(".").toAbsolutePath().normalize();
+			//rootPath = Paths.get(".").toAbsolutePath().normalize();
+			EventLogger.logGeneralException(logger, "Filesystem setup", e);
+			System.exit(1);
 		}
 		
-		currentPath = rootPath.relativize(rootPath);
+		currentPath = rootPath;
 	}
 	
 	/**
