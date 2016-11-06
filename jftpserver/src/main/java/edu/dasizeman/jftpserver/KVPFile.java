@@ -29,7 +29,7 @@ public class KVPFile {
 		int lineIdx = 1;
 		while ((line = reader.readLine()) != null) {
 			line = line.replace(" ", "");
-			if (isCommentLine(line)) 
+			if (isCommentLine(line) || line.equals("")) 
 				continue;
 			
 			Pattern lineFormatPattern = Pattern.compile(getLinePattern());

@@ -1,4 +1,4 @@
 jftpserver/target
 *.zip
-*.log
+*.log*
 *.lck

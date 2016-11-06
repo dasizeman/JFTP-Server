@@ -2,7 +2,8 @@ package edu.dasizeman.jftpserver;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.util.logging.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Entry point for a simple FTP server
@@ -19,17 +20,16 @@ public class Main {
 			System.out.println("The following arguments are required:");
 			System.out.println("-log : path to a log file.");
 			System.out.println("-port : port to listen for server connections on.");
-			System.out.println("    If port is omitted, port 21 is assumed");
 			return;
 		}
 		
 		// Set up logging
-		LogManager.getLogManager().reset();
+		RollingLogger.configure();
 		Logger logger = Logger.getGlobal();
 		
+		/*
 		FileHandler logFile = null;
 		StreamHandler consoleLog = null;
-
 		// Open the log file
 		try {
 			logFile = new FileHandler(parsedArgs.get("-log"), true);
@@ -61,6 +61,8 @@ public class Main {
 		// Log everything to some source
 		logger.setLevel(Level.ALL);
 		
+		//System.out.println(FileUtils.getUserDirectoryPath());
+		
 		/*
 		credManager.addCredential("dave", "magic");
 		try {
@@ -69,6 +71,7 @@ public class Main {
 			System.out.println(e1);
 		}
 		*/
+		
 		
 		// Create a server socket to listen for connections
 		int port = 0;
