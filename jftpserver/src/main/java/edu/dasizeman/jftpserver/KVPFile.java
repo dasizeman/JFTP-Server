@@ -9,6 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FileUtils;
+
 /**
  * Opens and parses a file with lines of the form "key"="value"
  * into a string,string map
@@ -49,7 +51,7 @@ public class KVPFile {
 	}
 	
 	private void init(String filepath) throws FileNotFoundException {
-		file = new File(filepath);
+		file = FileUtils.getFile(filepath);
 		reader = new BufferedReader(new FileReader(file));
 	}
 	

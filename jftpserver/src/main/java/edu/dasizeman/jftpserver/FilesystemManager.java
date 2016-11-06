@@ -98,7 +98,7 @@ public class FilesystemManager {
 				try {
 					return new FileInputStream(file);
 				} catch (FileNotFoundException e) {
-					EventLogger.logGeneralException(logger, e);
+					EventLogger.logGeneralException(logger,"File stream open" ,e);
 					break;
 				}
 			}

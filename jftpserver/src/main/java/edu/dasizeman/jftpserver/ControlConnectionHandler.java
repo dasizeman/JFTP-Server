@@ -35,6 +35,9 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	// Welcome message
 	private static final String WELCOME_MSG = "Welcome to JFTP, homie.";
 	
+	// The configuration option for the accounts file
+	private static final String ACCT_FILE_CONFIG_KEY = "usernamefile";
+	
 	// This is just for sending the help message
 	private static final String[] SUPPORTED_CMDS = new String[]{"USER", "PASS", "CWD", "CDUP", "QUIT", "PASV", "EPSV",
 			"PORT", "EPRT", "RETR", "PWD", "LIST", "HELP", "TYPE", "NOOP"};
@@ -88,9 +91,12 @@ public class ControlConnectionHandler extends ConnectionHandler {
 	 * @return If the initialization was successful
 	 */
 	private boolean init() {
-		// Load the credential file
-		CredentialManager.getInstance().loadCredentialFile(CredentialManager.CRED_FILE_PATH);
 		try {
+			// Get the config file
+			ConfigurationFile configFile = ConfigurationFile.getInstance();
+			
+			// Load the credential file
+			CredentialManager.getInstance().loadCredentialFile(configFile.getConfigValue(ACCT_FILE_CONFIG_KEY));
 			this.socketIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			this.socketOut = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 		} catch (IOException e) {

@@ -38,7 +38,7 @@ public class CredentialManager {
 			KVPFile credFile = new KVPFile(path);
 			credentialMap = credFile.parse();
 		} catch (LineFormatException | IOException e) {
-			EventLogger.logGeneralException(logger, e);
+			EventLogger.logGeneralException(logger, "Credential file load", e);
 			System.exit(1);
 		}
 		
