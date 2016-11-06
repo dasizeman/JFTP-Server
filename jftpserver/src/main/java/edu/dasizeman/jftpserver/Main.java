@@ -27,50 +27,6 @@ public class Main {
 		RollingLogger.configure();
 		Logger logger = Logger.getGlobal();
 		
-		/*
-		FileHandler logFile = null;
-		StreamHandler consoleLog = null;
-		// Open the log file
-		try {
-			logFile = new FileHandler(parsedArgs.get("-log"), true);
-		} catch (SecurityException | IOException e) {
-			System.out.println("Could not open log file.");
-			System.exit(1);
-		}
-		
-		SimplerFormatter simpleFormatter = new SimplerFormatter();
-		
-		// Set up console logging to flush to the console immediately
-		consoleLog = new StreamHandler(System.out, simpleFormatter) {
-	        @Override
-	        public synchronized void publish(final LogRecord record) {
-	            super.publish(record);
-	            flush();
-	        }
-	    };
-	    
-	    // Set how much each log target should log and how it should be formatted
-		consoleLog.setLevel(Level.ALL);
-		logFile.setFormatter(simpleFormatter);
-		logFile.setLevel(Level.ALL);
-		
-		
-		logger.addHandler(logFile);
-		//logger.addHandler(consoleLog);
-		
-		// Log everything to some source
-		logger.setLevel(Level.ALL);
-		
-		//System.out.println(FileUtils.getUserDirectoryPath());
-		
-		/*
-		credManager.addCredential("dave", "magic");
-		try {
-			credManager.writeCredentialFile();
-		} catch (FileNotFoundException e1) {
-			System.out.println(e1);
-		}
-		*/
 		
 		
 		// Create a server socket to listen for connections
