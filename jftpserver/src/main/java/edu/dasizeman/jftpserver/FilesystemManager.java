@@ -9,6 +9,7 @@ import java.nio.file.Paths;
 import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 
 /**
  * Handles navigating the file system, reading/writing files,
@@ -18,8 +19,10 @@ import org.apache.commons.io.FileUtils;
  */
 public class FilesystemManager {
 	private static final Logger logger = Logger.getGlobal();
-	private Path rootPath;
-	private Path currentPath;
+	
+	// These are always absolute paths
+	private String rootPath;
+	private String currentPath;
 	
 	/**
 	 * Create a new filesystem manager
@@ -35,7 +38,7 @@ public class FilesystemManager {
 			File rootDir = FileUtils.getFile(rootStr);
 			if (!rootDir.exists() || !rootDir.isDirectory())
 				throw new FileNotFoundException(String.format("Could not open root directory: %s", rootStr));
-			rootPath = Paths.get(rootDir.getAbsolutePath());
+			rootPath = rootDir.getAbsolutePath();
 			
 		} catch (IOException e) {
 			// Assuming . is always a valid path
@@ -52,10 +55,9 @@ public class FilesystemManager {
 	 * @return A string representing the cwd
 	 */
 	public String pwd() {
-		Path relativeTo;
-		relativeTo = rootPath;
-		String output = relativeTo.relativize(currentPath.toAbsolutePath()).normalize().toString().replaceAll("\\\\", "/");
-		return String.format("\"%s/\"", output);
+		return String.format("%s/",
+				Paths.get(rootPath).relativize(Paths.get(currentPath)).toString()
+				.replaceAll("\\\\", "/"));
 	}
 	
 	/**
@@ -65,10 +67,9 @@ public class FilesystemManager {
 	 */
 	public String ls() {
 		StringBuffer result = new StringBuffer();
-		File currentDirectory = currentPath.toAbsolutePath().toFile();
+		File currentDirectory = FileUtils.getFile(currentPath);
 		for (File file : currentDirectory.listFiles()) {
 			result.append(String.format("%s\r\n",printFile(file)));
-			
 		}
 		
 		return result.toString();
@@ -80,20 +81,29 @@ public class FilesystemManager {
 	 * @throws FileNotFoundException If the directory does not exist
 	 */
 	public void cd(String pathStr) throws FileNotFoundException {
-		if (pathStr.startsWith("/")) {
-			currentPath = rootPath.relativize(rootPath);
-		}
-		if (currentPath.toString().equals(""))
-			currentPath = Paths.get(".");
 		Path path = Paths.get(pathStr);
 		if (!path.isAbsolute()) {
-			pathStr = String.join("/", currentPath.toString(), path.toString());
+			String prefix;
+			if (pathStr.startsWith("/")) {
+				pathStr = pathStr.substring(1);
+				prefix = rootPath;
+			}
+			else
+				prefix = currentPath;
+			String normalized = FilenameUtils.normalize(FilenameUtils.concat(prefix, pathStr));
+			path = Paths.get(normalized);
 		}
-		Path realPath = getRealPath(pathStr);
-		if (realPath == null || !realPath.toFile().isDirectory())
-			throw new FileNotFoundException(String.format("Invalid path: %s", Paths.get(pathStr).toString().replaceAll("\\\\", "/")));
-		currentPath = rootPath.relativize(realPath);
-			
+		
+		if (pathExists(path.toString()) && isPathInRoot(path)) {
+			currentPath = path.toString();
+		} else {
+			throw new FileNotFoundException("Invalid path.");
+		}
+	}
+	
+	public boolean pathExists(String path) {
+		File directory = FileUtils.getFile(path);
+		return (directory.exists() && directory.isDirectory());
 	}
 	
 	/**
@@ -102,18 +112,15 @@ public class FilesystemManager {
 	 * @return The stream to the file, or null if it is not valid
 	 */
 	public FileInputStream getFileStream(String filename) {
-		File currentDirectory = currentPath.toAbsolutePath().toFile();
-		for (File file : currentDirectory.listFiles()) {
-			if (file.isFile() && file.getName().equals(filename)) {
-				try {
-					return new FileInputStream(file);
-				} catch (FileNotFoundException e) {
-					EventLogger.logGeneralException(logger,"File stream open" ,e);
-					break;
-				}
-			}
+		File currentDirectory = FileUtils.getFile(currentPath);
+		File targetFile = FileUtils.getFile(currentDirectory, filename);
+		try {
+			FileInputStream result = FileUtils.openInputStream(targetFile);
+			return result;
+		} catch (IOException e) {
+			EventLogger.logGeneralException(logger, "Opening file", e);
+			return null;
 		}
-		return null;
 	}
 	
 	/**
@@ -134,24 +141,19 @@ public class FilesystemManager {
 	 * @param path The path to validate
 	 * @return The Path object representing the valid path, or null if it isn't valid
 	 */
-	private Path getRealPath(String path) {
-		Path real;
-		try {
-			real = Paths.get(path).toAbsolutePath().normalize().toRealPath();
-		} catch (IOException e) {
-			return null;
-		}
-		Path parentCheck = real;
-		if (parentCheck.equals(rootPath))
-			return real;
+	private boolean isPathInRoot(Path path) {
+		Path parentCheck = path;
+		Path root = Paths.get(rootPath);
+		if (parentCheck.equals(root))
+			return true;
 		
 		while (parentCheck.getParent() != null) {
-			if (parentCheck.getParent().equals(rootPath))
-				return real;
+			if (parentCheck.getParent().equals(root))
+				return true;
 			parentCheck = parentCheck.getParent();
 		}
 		
-		return null;
+		return false;
 	}
 	
 	
