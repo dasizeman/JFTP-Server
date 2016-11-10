@@ -314,7 +314,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 		
 		// Let the client know we are about to send the file over the data connection, and kick off a thread
 		// to do so
-		sendFTPResponse(FTPResponse.ABOUT_TO_OPEN_DATA, String.format("%s incoming.", commandData.args[0]));
+		sendFTPResponse(FTPResponse.ABOUT_TO_OPEN_DATA, String.format("%s incoming.", fileName));
 		new DataConnectionHandler().startSend(dataSocket, fileStream, this);
 		
 		// Reset the type so they have to enter the connection method again (port or pasv)
@@ -342,6 +342,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			if (bindAddress == null)
 				portBound = false;
 			else {
+				EventLogger.logEvent(logger, "Data socket bind", String.format("Trying to bind address %s",bindAddress.getHostAddress()));
 				dataListener = new ServerSocket(0,0, bindAddress);
 				portBound = true;
 			}

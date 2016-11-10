@@ -13,12 +13,11 @@ import java.util.logging.Logger;
 public class Main {
 
 	public static void main(String[] args) {
-		String[] requiredArgs = new String[]{"-log", "-port"};
+		String[] requiredArgs = new String[]{"-port"};
 		ParseMap parsedArgs = Parser.Parse(args, requiredArgs);
 		
 		if (parsedArgs == null) {
 			System.out.println("The following arguments are required:");
-			System.out.println("-log : path to a log file.");
 			System.out.println("-port : port to listen for server connections on.");
 			return;
 		}

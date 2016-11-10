@@ -23,6 +23,10 @@ public class EventLogger {
 		logger.log(Level.SEVERE, String.format(LOG_FORMAT, context, e.getClass().getName(), e.getMessage()));
 	}
 	
+	public static void logEvent(Logger logger, String context, String message) {
+		logger.log(Level.INFO, String.format(LOG_FORMAT, "-", context,message));
+	}
+	
 	public static void logListenException(Logger logger, ServerSocket socket, Exception e) {
 		logger.log(Level.SEVERE, String.format(LOG_FORMAT, getListenIDString(socket),"Listen error", e.getMessage()));
 	}
@@ -43,6 +47,8 @@ public class EventLogger {
 	}
 	
 	private static String getListenIDString(ServerSocket socket) {
+		if (socket == null)
+			return "-";
 		String address = socket.getInetAddress().getHostAddress();
 		String port = Integer.toString(socket.getLocalPort());
 		
