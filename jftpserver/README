@@ -1,4 +1,4 @@
-JFTPServer
+jftpd
 Dave Sizer
 A simple FTP server in Java
 
@@ -18,12 +18,17 @@ NOTE!! The server expects a configuration file, jftpd.conf, in the same director
 the JVM is started from.  A sample jftpd.conf is provided in the project root as an example,
 which contains details on what can be configured.
 
-NOTE!! The server currently serves from wherever the JVM is started
-
 You can then run the server with:
-$ java -jar <jarfile> -log <log file name> -port <port to run server on>
+$ java -jar <jarfile> -port <port to run server on>
 
 All arguments are required
 
 NOTE that the ubuntu default 'ftp' utility works really well for testing, but doesn't seem to be on tux
 
+If the server just quits or you have any problems connecting, check the log
+(configurable through the config file).
+
+Common reasons for failure include:
+- jftpd.conf is not in the directory you started the server from
+- the server is unable to bind to the given port
+- creds.conf is not in the directory you started the server from

@@ -448,6 +448,7 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			alive = false;
 			return;
 		}
+		// TODO check if this is the same person that holds this data connection
 		dataConnection = connection;
 	}
 	
