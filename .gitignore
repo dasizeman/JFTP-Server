@@ -3,3 +3,4 @@ jftpserver/target
 *.log*
 *.lck
 *.xmi
+/bin/

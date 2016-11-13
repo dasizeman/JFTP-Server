@@ -448,13 +448,15 @@ public class ControlConnectionHandler extends ConnectionHandler {
 			alive = false;
 			return;
 		}
+
+                // Some security, verify that the IP connecting to our data port
+                // is the same one operating the control connection
                 if (!socket.getInetAddress().equals(connection.getInetAddress())) {
                     dataConnectionType = null;
                     sendFTPResponse(FTPResponse.NOT_AVAIL_CLOSING, "Data connection must be the same IP as control.  Closing connection");
                     alive = false;
                     return;
                 }
-		// TODO check if this is the same person that holds this data connection
 		dataConnection = connection;
 	}
 	

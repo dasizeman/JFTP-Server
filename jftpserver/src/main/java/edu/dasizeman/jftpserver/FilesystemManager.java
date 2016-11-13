@@ -35,7 +35,8 @@ public class FilesystemManager {
 		try {
 			//rootPath = Paths.get(rootStr).toAbsolutePath().normalize().toRealPath();
 			
-			File rootDir = FileUtils.getFile(rootStr);
+                        String normalized = FilenameUtils.normalize(rootStr);
+			File rootDir = FileUtils.getFile(normalized);
 			if (!rootDir.exists() || !rootDir.isDirectory())
 				throw new FileNotFoundException(String.format("Could not open root directory: %s", rootStr));
 			rootPath = rootDir.getAbsolutePath();
@@ -92,6 +93,7 @@ public class FilesystemManager {
 				prefix = currentPath;
 			String normalized = FilenameUtils.normalize(FilenameUtils.concat(prefix, pathStr));
 			path = Paths.get(normalized);
+                        EventLogger.logEvent(logger,"cd", String.format("Trying to cd to %s", path.toString()));
 		}
 		
 		if (pathExists(path.toString()) && isPathInRoot(path)) {
